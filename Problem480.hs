@@ -1,7 +1,5 @@
-import Data.Array
 import Data.List
 import Data.MemoCombinators
-
 
 type Histogram = [(Char,Int)]
 
@@ -16,49 +14,27 @@ select ((c,n):cns)
   where
     delay = map (fmap ((c,n):)) (select cns) -- fmap = second
 
-
-type Config = [Int]
-
-config :: Histogram -> Config
-config = map length . fillGaps . group . sort . map snd
+numContinuations :: Histogram -> Histogram -> Integer
+numContinuations hst0 = numConts . metaHistogram
   where
-    fillGaps :: [[Int]] -> [[Int]]
-    fillGaps = concat . snd . mapAccumL (\k xs@(x:_) -> (x+1,replicate (x-k) [] ++ [xs])) 1
+    metaHistogram :: Histogram -> [Int]
+    metaHistogram = map length . fillGaps . group . sort . map snd
+      where
+        fillGaps = concat . snd . mapAccumL (\k xs@(x:_) -> (x+1,replicate (x-k) [] ++ [xs])) 1
 
-decrements :: Config -> [(Config,Int)]
-decrements cfg =
-  let upds  = iterate (id:) (succ:pred:repeat id)
-  in  [ (tail (zipWith ($) upd (0:cfg)),n) | (n,upd) <- zip cfg upds, n > 0 ]
-
-size :: Config -> Int
-size = sum . zipWith (*) [1 ..]
-
-
-converters :: String -> (String -> Integer, Integer -> String)
-converters phrase = (word2index hst0 conts, index2word hst0 conts)
-  where
-    hst0 :: Histogram
-    hst0 = histogram phrase
-    conts :: Histogram -> Integer
-    conts = continuations hst0
-
-continuations :: Histogram -> Histogram -> Integer
-continuations hst0 = conts . config
-  where
-    base :: [Int]
-    base = map (+1) $ scanr1 (+) (config hst0)
-    encode :: Config -> Int
-    encode = foldr (\(b,d) n -> b*n+d) 0 . zip base
-    decode :: Int -> Config
-    decode code = snd $ mapAccumL (\n b -> let (n',d) = n `divMod` b in (n',d)) code base
-    maxCode :: Int
-    maxCode = product base - 1
-
-    conts, conts' :: Config -> Integer
-    conts = wrap decode encode (unsafeArrayRange (0,maxCode - 1)) conts'
-    conts' cfg
-      | size cfg == 33 = 1
-      | otherwise      = 1 + sum [ toInteger k * conts cfg' | (cfg',k) <- decrements cfg ]
+    numConts, numConts' :: [Int] -> Integer
+    numConts = wrap decode encode (unsafeArrayRange (0,product base - 1)) numConts'
+      where
+        base = map (+1) $ scanr1 (+) $ metaHistogram hst0
+        encode = foldr (\(b,d) n -> b*n+d) 0 . zip base
+        decode code = snd $ mapAccumL (\n b -> let (n',d) = n `divMod` b in (n',d)) code base
+    numConts' cfg
+      | size == 33 = 1
+      | otherwise  = 1 + sum [ numConts cfg'  * toInteger n | (cfg',n) <- cfg'ns ]
+      where
+        size   = sum $ zipWith (*) [1 ..] cfg
+        upds   = iterate (id:) (succ:pred:repeat id)
+        cfg'ns = [ (tail (zipWith ($) upd (0:cfg)),n) | (n,upd) <- zip cfg upds, n > 0 ]
 
 word2index :: Histogram -> (Histogram -> Integer) -> String -> Integer
 word2index hst0 conts = sum . snd . mapAccumL combine hst0
@@ -71,7 +47,6 @@ word2index hst0 conts = sum . snd . mapAccumL combine hst0
 index2word :: Histogram -> (Histogram -> Integer) -> Integer -> String
 index2word hst0 conts = unfoldr uncombine . (,) hst0
   where
-    uncombine :: (Histogram,Integer) -> Maybe (Char,(Histogram,Integer))
     uncombine (_  ,0  ) = Nothing
     uncombine (hst,idx) =
       let sels  = select hst
@@ -80,11 +55,8 @@ index2word hst0 conts = unfoldr uncombine . (,) hst0
       in  Just (c,(hst',idx-psum-1))
 
 main = do
-  let (w2i, i2w) = converters "thereisasyetinsufficientdataforameaningfulanswer"
-      solution = i2w $
-        w2i "legionary"
-          + w2i "calorimeters"
-          - w2i "annihilate"
-          + w2i "orchestrated"
-          - w2i "fluttering"
-  print solution
+  let histo = histogram "thereisasyetinsufficientdataforameaningfulanswer"
+      conts = numContinuations histo
+      w2i   = word2index histo conts
+      i2w   = index2word histo conts
+  print $ i2w (w2i "legionary" + w2i "calorimeters" - w2i "annihilate" + w2i "orchestrated" - w2i "fluttering")
