@@ -2,7 +2,6 @@ import Data.Array
 import Data.List
 import Data.MemoCombinators
 
-phrase = "thereisasyetinsufficientdataforameaningfulanswer"
 
 type Histogram = [(Char,Int)]
 
@@ -17,6 +16,7 @@ select ((c,n):cns)
   where
     delay = map (fmap ((c,n):)) (select cns) -- fmap = second
 
+
 type Config = [Int]
 
 config :: Histogram -> Config
@@ -24,9 +24,6 @@ config = map length . fillGaps . group . sort . map snd
   where
     fillGaps :: [[Int]] -> [[Int]]
     fillGaps = concat . snd . mapAccumL (\k xs@(x:_) -> (x+1,replicate (x-k) [] ++ [xs])) 1
-
-initial :: Config
-initial = config (histogram phrase)
 
 decrements :: Config -> [(Config,Int)]
 decrements cfg =
@@ -36,53 +33,58 @@ decrements cfg =
 size :: Config -> Int
 size = sum . zipWith (*) [1 ..]
 
-type Base = [Int]
-type Code = Int
 
-base :: Base
-base = map (+1) $ scanr1 (+) initial 
+converters :: String -> (String -> Integer, Integer -> String)
+converters phrase = (word2index hst0 conts, index2word hst0 conts)
+  where
+    hst0 :: Histogram
+    hst0 = histogram phrase
+    conts :: Histogram -> Integer
+    conts = continuations hst0
 
-encode :: Base -> Config -> Code
-encode bs = foldr (\(b,d) n -> b*n+d) 0 . zip bs
+continuations :: Histogram -> Histogram -> Integer
+continuations hst0 = conts . config
+  where
+    base :: [Int]
+    base = map (+1) $ scanr1 (+) (config hst0)
+    encode :: Config -> Int
+    encode = foldr (\(b,d) n -> b*n+d) 0 . zip base
+    decode :: Int -> Config
+    decode code = snd $ mapAccumL (\n b -> let (n',d) = n `divMod` b in (n',d)) code base
+    maxCode :: Int
+    maxCode = product base - 1
 
-decode :: Base -> Code -> Config
-decode bs code = snd $ mapAccumL (\n b -> let (n',d) = n `divMod` b in (n',d)) code bs
+    conts, conts' :: Config -> Integer
+    conts = wrap decode encode (unsafeArrayRange (0,maxCode - 1)) conts'
+    conts' cfg
+      | size cfg == 33 = 1
+      | otherwise      = 1 + sum [ toInteger k * conts cfg' | (cfg',k) <- decrements cfg ]
 
-maxCode :: Base -> Code
-maxCode bs = product bs - 1
-
-continuations :: Config -> Integer
-continuations = wrap (decode base) (encode base) (unsafeArrayRange (0,maxCode base - 1)) continuations'
-
-continuations' :: Config -> Integer
-continuations' cfg
-  | size cfg == 33 = 1
-  | otherwise      = 1 + sum [ toInteger k * continuations cfg' | (cfg',k) <- decrements cfg ]
-
-word2index :: String -> Integer
-word2index = sum . snd . mapAccumL combine (histogram phrase)
+word2index :: Histogram -> (Histogram -> Integer) -> String -> Integer
+word2index hst0 conts = sum . snd . mapAccumL combine hst0
   where
     combine hst c
       | c /= c'   = error "string does not match histogram"
-      | otherwise = (hst',1 + sum (map (continuations . config . snd) skp))
+      | otherwise = (hst',1 + sum (map (conts . snd) skp))
       where (skp,(c',hst'):_) = span ((c >) . fst) (select hst)
 
-index2word :: Integer -> String
-index2word = unfoldr uncombine . (,) (histogram phrase)
+index2word :: Histogram -> (Histogram -> Integer) -> Integer -> String
+index2word hst0 conts = unfoldr uncombine . (,) hst0
+  where
+    uncombine :: (Histogram,Integer) -> Maybe (Char,(Histogram,Integer))
+    uncombine (_  ,0  ) = Nothing
+    uncombine (hst,idx) =
+      let sels  = select hst
+          psums = scanl (+) 0 (map (conts . snd) sels)
+          (psum,(c,hst')) = last $ takeWhile ((idx >) . fst) $ zip psums sels
+      in  Just (c,(hst',idx-psum-1))
 
-uncombine :: (Histogram,Integer) -> Maybe (Char,(Histogram,Integer))
-uncombine (_  ,0  ) = Nothing
-uncombine (hst,idx) =
-  let sels  = select hst
-      psums = scanl (+) 0 (map (continuations . config . snd) sels)
-      (psum,(c,hst')) = last $ takeWhile ((idx >) . fst) $ zip psums sels
-  in Just (c,(hst',idx-psum-1))
-
-solution =  index2word $
-  word2index "legionary"
-    + word2index "calorimeters"
-    - word2index "annihilate"
-    + word2index "orchestrated"
-    - word2index "fluttering"
-
-main = print solution
+main = do
+  let (w2i, i2w) = converters "thereisasyetinsufficientdataforameaningfulanswer"
+      solution = i2w $
+        w2i "legionary"
+          + w2i "calorimeters"
+          - w2i "annihilate"
+          + w2i "orchestrated"
+          - w2i "fluttering"
+  print solution
