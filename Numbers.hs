@@ -2,6 +2,7 @@
 module Numbers where
 
 import Data.Array.IArray
+import Data.Bits
 import Data.Function
 import Data.List
 
@@ -87,6 +88,18 @@ divMaxPow n m = divMaxPow' 0 n
   where divMaxPow' k n = case n `divMod` m of
           (q,0) -> divMaxPow' (k+1) q
           (q,_) -> (n,k)
+
+-- | powMod x k m = x^k `mod` m
+powMod :: Integral a => a -> Int -> a -> a
+powMod x k m =
+  let run x k y
+        | k' == 0   = y'
+        | otherwise = run x' k' y'
+        where k' = k `shiftR` 1
+              x' = x*x `mod` m
+              y' = if k `testBit` 0 then x*y `mod` m else y
+  in  run x k 1
+
 
 -- | Returns a list of the digits for a given natural number the least
 --   significant digit first.
