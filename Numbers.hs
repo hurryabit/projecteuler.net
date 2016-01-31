@@ -117,27 +117,34 @@ m `notDivides` n = n `mod` m /= 0
 {-# SPECIALIZE notDivides :: Int     -> Int     -> Bool #-}
 {-# SPECIALIZE notDivides :: Integer -> Integer -> Bool #-}
 
--- | divMaxPow n m finds the greatest power m^k that divides n an returns
---   n/m^k and k.
+-- | divMaxPow n p finds the greatest power p^k that divides n an returns
+--   n/p^k and k.
 divMaxPow :: (Integral a, Integral e) => a -> a -> (a,e)
-divMaxPow n m = divMaxPow' 0 n
-  where divMaxPow' k n = case n `divMod` m of
+divMaxPow n p = divMaxPow' 0 n
+  where divMaxPow' k n = case n `divMod` p of
           (q,0) -> divMaxPow' (k+1) q
           (q,_) -> (n,k)
 
 {-# SPECIALIZE divMaxPow :: Int     -> Int     -> (Int    ,Int) #-}
 {-# SPECIALIZE divMaxPow :: Integer -> Integer -> (Integer,Int) #-}
 
--- | powMod x k m = x^k `mod` m
+-- | powMod a k n = a^k `mod` n
 powMod :: (Integral a, Integral e, Bits e) => a -> e -> a -> a
-powMod x k m =
-  let run x k y
-        | k' == 0   = y'
-        | otherwise = run x' k' y'
+powMod a k n =
+  let run a k b
+        | k' == 0   = b'
+        | otherwise = run a' k' b'
         where k' = k `shiftR` 1
-              x' = x*x `mod` m
-              y' = if k `testBit` 0 then x*y `mod` m else y
-  in  run x k 1
+              a' = a*a `mod` n
+              b' = if k `testBit` 0 then a*b `mod` n else b
+  in  run a k 1
+
+-- invMod a n = a^(-1) mod n
+invMod :: Integral a => a -> a -> a
+invMod a n =
+  let (1,r,_) = euclid (a `mod` n) n
+  in  r `mod` n
+
 
 {-# SPECIALIZE powMod :: Int     -> Int -> Int     -> Int     #-}
 {-# SPECIALIZE powMod :: Integer -> Int -> Integer -> Integer #-}
