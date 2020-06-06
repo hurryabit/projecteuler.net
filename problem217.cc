@@ -77,7 +77,7 @@ typedef long unsigned nat_t;
 typedef mod_t<nat_t, 14348907> sum_t;
 
 int main () {
-  const nat_t K = 23;
+  const nat_t K = 500;
   multiset_t<sum_t> xs[K*9+1], xs_old[K*9+1];
   multiset_t<sum_t> ys[K*9+1], ys_old[K*9+1];
 

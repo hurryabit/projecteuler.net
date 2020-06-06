@@ -10,15 +10,21 @@ long monochrome_bound(int x, int g);
 long bichrome_exact(int x, int y, int g);
 long bichrome_bound(int x, int y, int g);
 
-long monochrome_exact(int x, int g) {
-  static vector<vector<long>> table(61, vector<long>(101, -1));
+long** monochrome_exact_table;
 
-  long& entry = table[x][g];
-  if( entry < 0 )
-    entry = x < g ? 0 : monochrome_bound(x-g, g);
+long monochrome_exact(int x, int g) {
+  long& entry = monochrome_exact_table[x][g];
+  if( entry < 0 ) {
+    if( x < g )
+      entry = 0;
+    else
+      entry = monochrome_bound(x-g, g);
+  }
 
   return entry;
 }
+
+long** monochrome_bound_table;
 
 long monochrome_bound(int x, int g) {
   static vector<vector<long>> table(61, vector<long>(101, -1));
@@ -41,7 +47,9 @@ long bichrome_exact(int x, int y, int g) {
 
   long& entry = table[x][y][g];
   if( entry < 0 ) {
-    if( x == 0 )
+    if( x < y )
+      entry = bichrome_exact(y, x, g);
+    else if( x == 0 )
       entry = monochrome_exact(y, g);
     else if( y == 0 )
       entry = monochrome_exact(x, g);
@@ -72,7 +80,9 @@ long bichrome_bound(int x, int y, int g) {
 
   long& entry = table[x][y][g];
   if( entry < 0 ) {
-    if( x == 0 && y == 0 )
+    if( x < y )
+      entry = bichrome_bound(y, x, g);
+    else if( x == 0 && y == 0 )
       entry = 1;
     else if( g == 0 )
       entry = 0;
@@ -84,5 +94,18 @@ long bichrome_bound(int x, int y, int g) {
 }
 
 int main() {
+  monochrome_exact_table = new long*[61];
+  monochrome_bound_table = new long*[61];
+  for( int i = 0; i <= 60; ++i ) {
+    long* monochrome_exact_row = new long[101];
+    long* monochrome_bound_row = new long[101];
+    for( int j = 0; j <= 100; ++j ) {
+      monochrome_exact_row[j] = -1;
+      monochrome_bound_row[j] = -1;
+    }
+    monochrome_exact_table[i] = monochrome_exact_row;
+    monochrome_bound_table[i] = monochrome_bound_row;
+  }
+
   cout << bichrome_bound(60, 40, 100) << endl;
 }
